@@ -1,0 +1,1837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Story Platformer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: #0f0f1e;
+            cursor: none;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 24px;
+            color: #00ff88;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 10;
+        }
+        
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 10px;
+            border: 3px solid #ff0055;
+            display: none;
+            z-index: 100;
+        }
+        
+        #gameOver h1 {
+            color: #ff0055;
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        #gameOver p {
+            color: #00ff88;
+            font-size: 32px;
+            margin-bottom: 30px;
+        }
+        
+        #restartBtn {
+            background: #00ff88;
+            color: #0f0f1e;
+            border: none;
+            padding: 15px 40px;
+            font-size: 24px;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        
+        #restartBtn:hover {
+            background: #00cc6a;
+            transform: scale(1.1);
+        }
+        
+        #instructions {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            font-size: 16px;
+            color: #aaa;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div>Score: <span id="score">0</span></div>
+        <div id="docProgress" style="display: none; margin-top: 10px;">
+            Progress: <span id="progressText">0</span>/<span id="progressTotal">0</span>
+        </div>
+    </div>
+    <div id="instructions">
+        A/D or ARROWS to move | SPACE or UP to jump | Stay on the words!
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="startScreen" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 100; background: rgba(15, 15, 30, 0.98); padding: 40px; border-radius: 10px;">
+        <h1 style="color: #00ff88; font-size: 64px; margin-bottom: 20px;">STORY PLATFORMER</h1>
+        <p style="color: #fff; font-size: 20px; margin-bottom: 30px;">Choose Your Mode:</p>
+        <button id="endlessModeBtn" style="background: #00ff88; color: #0f0f1e; border: none; padding: 15px 40px; font-size: 24px; font-family: 'Courier New', monospace; cursor: pointer; border-radius: 5px; margin: 10px; transition: all 0.3s;">
+            Endless Mode
+        </button>
+        <br>
+        <button id="documentModeBtn" style="background: #ff6600; color: #0f0f1e; border: none; padding: 15px 40px; font-size: 24px; font-family: 'Courier New', monospace; cursor: pointer; border-radius: 5px; margin: 10px; transition: all 0.3s;">
+            Epstein Files Mode
+        </button>
+        <p style="color: #aaa; font-size: 14px; margin-top: 20px; max-width: 500px;">Epstein Files Mode: Platform through real FBI reports and court documents from DOJ releases.<br>Text based on files from jmail.world and justice.gov<br>Complete the document to win!</p>
+    </div>
+    <div id="gameOver">
+        <h1>GAME OVER!</h1>
+        <p>Score: <span id="finalScore">0</span></p>
+        <button id="restartBtn">Try Again</button>
+        <p style="font-size: 16px; margin-top: 20px; color: #aaa;">Press SPACE or ENTER to restart</p>
+    </div>
+    <div id="documentComplete" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(0, 0, 0, 0.95); padding: 40px; border-radius: 10px; border: 3px solid #00ff88; display: none; z-index: 100;">
+        <h1 style="color: #00ff88; font-size: 48px; margin-bottom: 20px;">DOCUMENT COMPLETE!</h1>
+        <p style="color: #fff; font-size: 24px; margin-bottom: 10px;">You made it through the entire file!</p>
+        <p style="color: #00ff88; font-size: 32px; margin-bottom: 30px;">Final Score: <span id="docFinalScore">0</span></p>
+        <button id="nextDocBtn" style="background: #ff6600; color: #0f0f1e; border: none; padding: 15px 40px; font-size: 24px; font-family: 'Courier New', monospace; cursor: pointer; border-radius: 5px; margin: 10px; transition: all 0.3s;">
+            Next Document
+        </button>
+        <br>
+        <button id="backToMenuBtn" style="background: #00ff88; color: #0f0f1e; border: none; padding: 15px 40px; font-size: 24px; font-family: 'Courier New', monospace; cursor: pointer; border-radius: 5px; margin: 10px; transition: all 0.3s;">
+            Back to Menu
+        </button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        // Game state
+        let gameRunning = false;
+        let gameStarted = false;
+        let gameMode = null; // 'endless' or 'document'
+        let score = 0;
+        let cameraX = 0;
+        let cameraSpeed = 3.5; // Increased from 2 to 3.5 for smoother reading and more difficulty
+        let scrollThreshold = canvas.width * 0.75; // Start scrolling when player reaches 75% of screen width
+        
+        // Document mode specific
+        let currentDocumentIndex = 0;
+        let documentProgress = 0;
+        let documentComplete = false;
+        
+        // Player
+        const player = {
+            x: 150,
+            y: canvas.height / 2 - 100,
+            width: 30,
+            height: 50,
+            velocityX: 0,
+            velocityY: 0,
+            speed: 5,
+            gravity: 0.6,
+            jumpPower: -12,
+            onGround: false,
+            dead: false
+        };
+        
+        // Story segments with funny, trolling content
+        const storySegments = [
+            "Once upon a time, there was a brave stick figure...",
+            "who thought they were good at games. LOL.",
+            "They ran across words, thinking it was easy...",
+            "BUT THEN THE WORDS WENT UP!",
+            "down they came,",
+            "and sideways too because why not?",
+            "The stick figure was getting tired...",
+            "But the story never ends! MUAHAHAHA!",
+            "Oh wait, did I mention the GAPS?",
+            "Yeah, there are gaps. Good luck with that.",
+            "You're actually doing pretty well...",
+            "PSYCH! Here comes a hard part!",
+            "Up up and away we go!",
+            "Wheee! This is fun, right? RIGHT?!",
+            "No? Too bad! Keep running, little stick figure!",
+            "I bet you can't make it past here...",
+            "Oh, you did? Well, how about THIS?",
+            "Going down down down...",
+            "And back up because I'm evil like that.",
+            "Your fingers must be tired from jumping...",
+            "Mine are tired from typing all this!",
+            "But I won't stop. NEVER GONNA STOP!",
+            "This is your life now. Running on words forever.",
+            "At least the view is... wait, there is no view.",
+            "Just more words. Endless words.",
+            "Hey, wanna hear a joke? Your high score.",
+            "Just kidding! Keep going!",
+            "Or don't. See if I care.",
+            "Okay I do care a little bit...",
+            "SURPRISE! Random difficulty spike!",
+            "Did that scare you? It should have.",
+            "Anyway, where was I? Oh right, torturing you.",
+            "This is what you signed up for, after all.",
+            "A 'fun' platforming game, they said...",
+            "It'll be 'entertaining', they said...",
+            "Nobody mentioned the pain!",
+            "The suffering! The endless jumping!",
+            "But you're still here. I respect that.",
+            "WAIT WATCH OUT!",
+            "Haha, nothing was there. Made you panic though!",
+            "These mind games are the best part.",
+            "For me, anyway. Not for you probably.",
+            "Let's try going way up high...",
+            "Hope you're not afraid of heights!",
+            "Or falling. Falling is worse.",
+            "Splat! That's the sound you make when you fall.",
+            "Not that you will fall. You're too good for that...",
+            "Or are you? *suspenseful music*",
+            "Plot twist: There is no music!",
+            "Just the sound of your keyboard clicking.",
+            "And your eventual screams of frustration.",
+            "Beautiful, isn't it?",
+            "I think we're bonding here.",
+            "You, me, and these endless words.",
+            "It's almost poetic. Almost.",
+            "But mostly it's just chaotic.",
+            "Which is exactly how I like it!",
+            "Time for another challenge!",
+            "Can you handle narrow platforms?",
+            "Let's find out together!",
+            "Oops, that was close!",
+            "Or was it? I wasn't really watching.",
+            "I'm too busy thinking of ways to mess with you.",
+            "Speaking of which..."
+        ];
+        
+        // REAL Epstein Emails - extracted from DOJ releases January 2026
+        const investigativeDocuments = [
+            {
+                title: "Elon Musk to Epstein - November 2012",
+                segments: [
+                    "FROM: Elon Musk",
+                    "TO: Jeffrey Epstein",
+                    "DATE: November 25, 2012",
+                    "SUBJECT: Island Visit",
+                    "Epstein asked:",
+                    "how many people will you be for the heli to island",
+                    "Musk replied:",
+                    "Probably just Talulah and me.",
+                    "What day slash night will be the",
+                    "wildest party on your island?",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Elon Musk - Christmas Plans December 2012",
+                segments: [
+                    "FROM: Elon Musk",
+                    "TO: Jeffrey Epstein",
+                    "DATE: December 25, 2012",
+                    "SUBJECT: St Barts Plans",
+                    "Do you have any parties planned?",
+                    "I've been working to the edge of sanity this year",
+                    "and so once my kids head home after Christmas",
+                    "I really want to hit the party scene",
+                    "in St Barts or elsewhere and let loose.",
+                    "The invitation is much appreciated",
+                    "but a peaceful island experience is the",
+                    "opposite of what I'm looking for.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Elon Musk - BVI Visit December 2013",
+                segments: [
+                    "FROM: Elon Musk",
+                    "TO: Jeffrey Epstein",
+                    "DATE: December 2013",
+                    "SUBJECT: Christmas and New Years",
+                    "Will be in the BVI St Barts area",
+                    "over the holidays.",
+                    "Is there a good time to visit?",
+                    "Epstein replied:",
+                    "any day 1st - 8th.",
+                    "play it by ear if you want.",
+                    "always space for you.",
+                    "Musk wrote back:",
+                    "Actually I could fly back early on the 3rd.",
+                    "We will be in St Barts.",
+                    "When should we head to your island on the 2nd?",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Trump Email - The Dog That Hasnt Barked",
+                segments: [
+                    "FROM: Jeffrey Epstein",
+                    "TO: Ghislaine Maxwell",
+                    "DATE: 2011",
+                    "SUBJECT: RE: Virginia Claims",
+                    "i want you to realize that",
+                    "that dog that hasn't barked is trump",
+                    "virignia spent hours at my house with him",
+                    "he has never once been mentioned",
+                    "Ghislaine replied:",
+                    "I have been thinking about that.",
+                    "NOTE: Trump denies any wrongdoing",
+                    "and says he banned Epstein from Mar-a-Lago.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Trump and the Girls - Email to Michael Wolff",
+                segments: [
+                    "FROM: Jeffrey Epstein",
+                    "TO: Michael Wolff (author)",
+                    "DATE: 2019",
+                    "SUBJECT: RE: Mar-a-Lago Story",
+                    "She was the one who accused Prince Andrew.",
+                    "Epstein wrote about Virginia Giuffre:",
+                    "She worked at Mar-a-Lago.",
+                    "Of course he knew about the girls",
+                    "as he asked ghislaine to stop.",
+                    "NOTE: Trump claims he banned Epstein",
+                    "for taking people who worked for him.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Bill Clinton Never on Island - Epstein Claims",
+                segments: [
+                    "FROM: Jeffrey Epstein",
+                    "TO: Landon Thomas Jr (NY Times)",
+                    "DATE: 2015",
+                    "SUBJECT: RE: Virginia Claims",
+                    "Clinton was NEVER EVER there never.",
+                    "Presidents at dinner on caribean islands.",
+                    "( clinton was never ever there easy to confirm ).",
+                    "Sharing a bath with a Prince",
+                    "( bathtub too small even for one adult ).",
+                    "sex slave being paid thousands of dollars.",
+                    "( while at the exact same time",
+                    "she was working as a hostess in a burger bar ).",
+                    "NOTE: Epstein strategizing response to allegations.",
+                    "Clinton has denied visiting the island.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Prince Andrew Defense - Epstein to Publicist",
+                segments: [
+                    "FROM: Jeffrey Epstein",
+                    "TO: Publicist",
+                    "DATE: 2011",
+                    "SUBJECT: Virginia Roberts Investigation",
+                    "The girl who accused Prince Andrew",
+                    "can also easily be proven to be a liar.",
+                    "I think Buckingham Palace would love it.",
+                    "You should task someone",
+                    "to investigate the girl Virginia Roberts.",
+                    "NOTE: Virginia Giuffre maiden name was Roberts.",
+                    "Prince Andrew settled lawsuit with Giuffre.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Steve Bannon Text Exchange - December 2018",
+                segments: [
+                    "FROM: Unknown (redacted)",
+                    "TO: Jeffrey Epstein",
+                    "DATE: December 2018",
+                    "SUBJECT: RE: Trump Investigation",
+                    "It will all blow over!",
+                    "Theyre really just trying to take down Trump",
+                    "and doing whatever they can to do that",
+                    "Epstein replied:",
+                    "yes thx.",
+                    "Epstein also wrote:",
+                    "with Bannon now",
+                    "NOTE: Text shows Epstein relationship with Bannon.",
+                    "Bannon has not commented on these messages.",
+                    "END OF TEXT"
+                ]
+            },
+            {
+                title: "Larry Summers and Epstein - 2017 Email",
+                segments: [
+                    "FROM: Larry Summers",
+                    "TO: Jeffrey Epstein",
+                    "DATE: 2017",
+                    "SUBJECT: RE: Trump Discussion",
+                    "Email shows Summers and Epstein",
+                    "gossiped about President Trump",
+                    "during his first term",
+                    "and insulted Trumps intelligence.",
+                    "NOTE: Summers left OpenAI board",
+                    "and stopped teaching at Harvard",
+                    "after first Epstein files release.",
+                    "Summers calls relationship",
+                    "a major error of judgment.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Richard Branson to Epstein - September 2013",
+                segments: [
+                    "FROM: Richard Branson",
+                    "TO: Jeffrey Epstein",
+                    "DATE: September 11, 2013",
+                    "SUBJECT: RE: Nice Seeing You",
+                    "Dear Jeffrey",
+                    "It was really nice seeing you yesterday.",
+                    "The boys in Watersports cant stop speaking about it!",
+                    "Any time youre in the area would love to see you.",
+                    "As long as you bring your harem!",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Richard Branson PR Advice to Epstein",
+                segments: [
+                    "FROM: Richard Branson",
+                    "TO: Jeffrey Epstein",
+                    "DATE: September 2013",
+                    "SUBJECT: Public Relations Thoughts",
+                    "I think if Bill Gates was willing to say",
+                    "that youve been a brilliant advisor to him",
+                    "that you slipped up many years ago",
+                    "by sleeping with a 17 and a half year old woman",
+                    "and were punished for it",
+                    "that youve more than learnt your lesson",
+                    "and have done nothing thats against the law since",
+                    "and yes as a single man you seem to have",
+                    "a penchant for women.",
+                    "But theres nothing wrong with that.",
+                    "Anyway something along those lines.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Bill Gates Email - Epstein Draft July 2013",
+                segments: [
+                    "FROM: Jeffrey Epstein",
+                    "TO: Jeffrey Epstein (DRAFT)",
+                    "DATE: July 18, 2013",
+                    "SUBJECT: Bill",
+                    "dear bill",
+                    "I cannot believe that you have chosen",
+                    "to disregard our friendship",
+                    "developed of over the last 6 years.",
+                    "To add insult to the injury",
+                    "you then subsequently with tears in your eyes",
+                    "implore me to please delete the emails",
+                    "regarding your std",
+                    "your request that I provide you antibiotics",
+                    "that you can surreptitiously give to Melinda",
+                    "and the description of your penis.",
+                    "NOTE: Draft email Epstein sent to himself",
+                    "Gates denies these claims as completely false.",
+                    "END OF DRAFT"
+                ]
+            },
+            {
+                title: "Bill Gates STD Allegation - Draft Email",
+                segments: [
+                    "FROM: Jeffrey Epstein",
+                    "TO: Jeffrey Epstein (DRAFT)",
+                    "DATE: July 13, 2013",
+                    "SUBJECT: Boris Resignation Letter",
+                    "Draft written as Boris Nikolic:",
+                    "I have been asked and wrongly acquiesced",
+                    "into participating in things that have ranged",
+                    "from the morally inappropriate",
+                    "to the ethically unsound",
+                    "and have been repeatedly asked to do things",
+                    "that get near and potentially over the line",
+                    "into the illegal.",
+                    "From helping Bill to get drugs",
+                    "in order to deal with consequences",
+                    "of sex with Russian girls.",
+                    "NOTE: Draft email - unverified allegations",
+                    "Gates spokesperson calls claims absurd and false.",
+                    "END OF DRAFT"
+                ]
+            },
+            {
+                title: "Kathryn Ruemmler Email - December 2015",
+                segments: [
+                    "FROM: Kathryn Ruemmler",
+                    "TO: [Redacted Recipient]",
+                    "DATE: December 2015",
+                    "SUBJECT: RE: Europe Trip",
+                    "Context: Epstein offered first class ticket to Europe",
+                    "Ruemmler responded:",
+                    "I adore him.",
+                    "Its like having another older brother!",
+                    "NOTE: Ruemmler was White House counsel under Obama",
+                    "She told Wall Street Journal in 2023:",
+                    "I regret ever knowing Jeffrey Epstein.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Woody Allen Text - May 2015",
+                segments: [
+                    "FROM: Jeffrey Epstein",
+                    "TO: Woody Allen",
+                    "DATE: May 2015",
+                    "SUBJECT: White House Museum Trip",
+                    "Text message exchange:",
+                    "Epstein asks:",
+                    "Do you want to have a day museum",
+                    "White House trip next week?",
+                    "Allen replied:",
+                    "With my rap sheet",
+                    "Ill never get past security.",
+                    "END OF TEXT MESSAGE"
+                ]
+            },
+            {
+                title: "Bill Clinton and Jeff Bezos - October 2009",
+                segments: [
+                    "FROM: Peggy Siegal",
+                    "TO: Jeffrey Epstein",
+                    "DATE: October 2009",
+                    "SUBJECT: After Party",
+                    "Just left Ghislaine Maxwells house",
+                    "where an after party for film was being held.",
+                    "Bill Clinton and Jeff Bezos were there.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Pizza Party Alert - Feeney Email",
+                segments: [
+                    "FROM: [Redacted]",
+                    "TO: Jeffrey Epstein",
+                    "DATE: Unknown",
+                    "SUBJECT: Alert - Feeney asking about pizza party",
+                    "Alert - Feeney asking about a pizza party",
+                    "this weekend",
+                    "NOTE: Pizza appears 859 times in Epstein files.",
+                    "Some speculate its code language.",
+                    "Context remains unclear.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Send Pizza to Bobby - Alert Email",
+                segments: [
+                    "FROM: [Redacted]",
+                    "TO: [Redacted]",
+                    "DATE: Unknown",
+                    "SUBJECT: Alert - Send pizza to Bobby!!",
+                    "Alert - Send pizza to Bobby!!",
+                    "NOTE: Another pizza reference.",
+                    "Over 890 references to pizza in files.",
+                    "Conspiracy theories suggest code language.",
+                    "No confirmation of meaning.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Thank You For Pizza - Yummy Email",
+                segments: [
+                    "FROM: Unknown",
+                    "TO: Valdson Cotrin",
+                    "DATE: Unknown",
+                    "SUBJECT: Pizza Today",
+                    "Thank you for the pizza today!",
+                    "really good!!",
+                    "YUMMY YUMMY!!",
+                    "xo!:)",
+                    "NOTE: One of many pizza references in files.",
+                    "Breaking Points noted strange coded language.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Crew Appreciated Pizza - Roy and Stephanie",
+                segments: [
+                    "FROM: Roy and Stephanie Hodges",
+                    "TO: Jeffrey Epstein",
+                    "DATE: Unknown",
+                    "SUBJECT: Thank You",
+                    "I wanted to let you know",
+                    "the crew really appreciated the pizza today.",
+                    "Thank you for letting us do that.",
+                    "NOTE: Another seemingly innocent pizza reference.",
+                    "Critics note many dont make sense contextually.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Chinese Cookie and Pizza - Strange Email",
+                segments: [
+                    "FROM: [Redacted]",
+                    "TO: Jeffrey Epstein",
+                    "DATE: Unknown",
+                    "SUBJECT: Better Than Chinese Cookie",
+                    "This is better than a Chinese cookie.",
+                    "See attached.",
+                    "Lets go for pizza and grape soda again.",
+                    "NOTE: One of the stranger pizza references.",
+                    "Breaking Points called it coded language.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Howard Lutnick Island Visit - December 2012",
+                segments: [
+                    "FROM: Allison Lutnick (wife)",
+                    "TO: Lesley Groff (Epstein assistant)",
+                    "DATE: December 2012",
+                    "SUBJECT: Island Visit Plans",
+                    "Email chain shows:",
+                    "Lutnick family planned visit to Little St James",
+                    "with their four children and another family.",
+                    "Travel logistics coordinated with Groffs help.",
+                    "Coordinates shared: come sat or sunday lunch?",
+                    "little st jamcs on the map behind christmans cove",
+                    "NOTE: Lutnick later called Epstein gross",
+                    "and the greatest blackmailer ever.",
+                    "Commerce Dept says limited interactions",
+                    "in presence of wife no wrongdoing.",
+                    "END OF EMAIL CHAIN"
+                ]
+            },
+            {
+                title: "Elon Musk Schedule Entry - December 2014",
+                segments: [
+                    "FROM: Lesley Groff (Epstein assistant)",
+                    "TO: Jeffrey Epstein",
+                    "DATE: October 2014",
+                    "SUBJECT: Schedule Reminder",
+                    "Just a reminder",
+                    "Elon Musk is to go to the island on Dec. 6th",
+                    "Follow up email December 5 2014:",
+                    "Reminder: Elon Musk to island Dec. 6",
+                    "(is this still happening?)",
+                    "NOTE: Musk claims this schedule entry was false",
+                    "and he refused all island invitations.",
+                    "END OF SCHEDULE ENTRY"
+                ]
+            },
+            {
+                title: "Ghislaine Maxwell Flirty Email to Clinton Staff",
+                segments: [
+                    "FROM: Ghislaine Maxwell",
+                    "TO: Clinton Staffer (name redacted)",
+                    "DATE: Early 2000s",
+                    "SUBJECT: RE: Tabloid Story",
+                    "I told tabloid what supper stud you are",
+                    "and how I have a crush on you",
+                    "and how you are hung like a horse",
+                    "and- well you get the picture.",
+                    "Hope you dont mind!",
+                    "NOTE: Maxwell had frequent communications",
+                    "with Clinton staffers between 2001-2004.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Clinton Staffer Brags to Maxwell",
+                segments: [
+                    "FROM: Clinton Staffer (name redacted)",
+                    "TO: Ghislaine Maxwell",
+                    "DATE: 2002",
+                    "SUBJECT: RE: Weekend",
+                    "Went home with someone I have before",
+                    "a 40 year old blonde big boobby widow",
+                    "if you can believe that.",
+                    "NOTE: Lewd exchanges between Maxwell",
+                    "and Clinton office email addresses.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "Prince Andrew Contact - Clinton Trip to Scotland",
+                segments: [
+                    "FROM: Clinton Staffer",
+                    "TO: Ghislaine Maxwell",
+                    "DATE: December 2001",
+                    "SUBJECT: Andrew Phone Number",
+                    "Clinton staffer asked Maxwell",
+                    "for Prince Andrews phone number",
+                    "to coordinate golf outing during trip",
+                    "by Bill Clinton to Scotland.",
+                    "Maxwell replied:",
+                    "Just spoke to Andrew.",
+                    "He is not currently in Scotland",
+                    "but is going to m.",
+                    "He says if I give him a no.",
+                    "he will ring Clinton.",
+                    "Doug do you want him to call you?",
+                    "NOTE: Likely refers to Doug Band top Clinton adviser.",
+                    "END OF EMAIL"
+                ]
+            },
+            {
+                title: "FBI Lab Request - Death Investigation",
+                segments: [
+                    "FEDERAL BUREAU OF INVESTIGATION",
+                    "Laboratory Examination Request",
+                    "Case ID: 90A-NY-3151227",
+                    "JEFFREY EPSTEIN - VICTIM",
+                    "DEATH INVESTIGATION",
+                    "Date: January 2020",
+                    "On September 25 2019",
+                    "Special Agent received phone call",
+                    "from Bureau of Prisons",
+                    "regarding letter received by MCC.",
+                    "Letter was return to sender with:",
+                    "J. Epstein Manhattan Correctional NYC NY",
+                    "Letter postmarked August 13 2019",
+                    "addressed to Larry Nassar Tucson Arizona.",
+                    "FBI requests handwriting analysis",
+                    "to determine if Epstein wrote the letter.",
+                    "END OF DOCUMENT"
+                ]
+            },
+            {
+                title: "Detention Memo - Flight Risk Assessment",
+                segments: [
+                    "U.S. DEPARTMENT OF JUSTICE",
+                    "DETENTION MEMORANDUM",
+                    "U.S. Customs and Border Patrol logged",
+                    "approximately more than 20 flights",
+                    "in which Epstein was traveling",
+                    "to or from a foreign country.",
+                    "He was arrested at Teterboro Airport",
+                    "arriving on private international flight",
+                    "after spending three weeks abroad.",
+                    "Defendant has no meaningful ties",
+                    "to keep him in this country.",
+                    "He is not married and has no children.",
+                    "Extensive international travel",
+                    "demonstrates significant risk of flight.",
+                    "His vast wealth including access",
+                    "to private planes provide motive",
+                    "and means to become fugitive.",
+                    "END OF MEMO"
+                ]
+            },
+            {
+                title: "FBI Investigation Summary - December 2018",
+                segments: [
+                    "CRIMINAL INVESTIGATIVE DIVISION",
+                    "UNCLASSIFIED",
+                    "On December 6 2018 FBI NY initiated case",
+                    "after Southern District of New York",
+                    "contacted FBI NY regarding several victims",
+                    "sexually abused by Jeffrey Epstein in mid 2000s.",
+                    "Beginning in at least 2002",
+                    "Epstein enticed and recruited",
+                    "dozens of minor girls",
+                    "to engage in sex acts with him",
+                    "for which he paid victims",
+                    "hundreds of dollars in cash.",
+                    "Some of his victims were as young as 14.",
+                    "Activity occurred at mansion in Manhattan",
+                    "and estate in Palm Beach Florida.",
+                    "Searches executed at both locations.",
+                    "END OF SUMMARY"
+                ]
+            }
+        ];
+        
+        let currentDocumentSegments = [];
+        
+        let currentSegmentIndex = 0;
+        let currentSegment = storySegments[0];
+        let typedText = "";
+        let charIndex = 0;
+        let typeSpeed = 8; // Increased from 3 to 8 characters per second to match faster scroll speed
+        let typingProgress = 0;
+        let wrongWordMode = false;
+        let wrongWord = "";
+        let wrongWordCharsTyped = 0;
+        let deleteMode = false;
+        let deleteCount = 0;
+        let correctWordAfterDelete = "";
+        let wrongWordProbability = 0.12;
+        let doubleJumpPowerup = null; // Appears when text is deleted
+        let hasDoubleJump = false;
+        let hasUsedDoubleJump = false;
+        let lastErrorTime = -10000; // Track when last error occurred
+        let errorCooldown = 10000; // 10 seconds in milliseconds
+        
+        // Airplane obstacle (for Epstein Files mode)
+        let airplane = null;
+        let airplaneSpawnTimer = 0;
+        let airplaneSpawnInterval = 600; // Increased to 10 seconds between spawns (600 frames at 60fps)
+        let airplanesSpawned = 0;
+        let maxAirplanes = 3; // Only 3 airplanes total per game
+        
+        // Finish line (for document mode)
+        let finishLineIsland = null;
+        
+        // Some wrong words to use
+        const wrongWords = [
+            "banana", "potato", "chicken", "noodle", "wizard", "unicorn", 
+            "OOPS", "ERROR", "GLITCH", "BUG", "derp", "whoops"
+        ];
+        
+        // Letter positions and platforms
+        let letters = [];
+        let lastLetterX = 100;
+        let yPosition = canvas.height / 2;
+        let yDirection = 0; // -1 = up, 0 = straight, 1 = down
+        let yDirectionTimer = 0;
+        
+        // Initialize with starting platform (only for endless mode)
+        function initializeStartingPlatform() {
+            const startText = "Once upon a time";
+            for (let i = 0; i < startText.length; i++) {
+                const char = startText[i];
+                if (char !== ' ') {
+                    const letterSize = 60;
+                    letters.push({
+                        char: char,
+                        x: lastLetterX,
+                        y: yPosition,
+                        baseY: yPosition,
+                        size: letterSize,
+                        width: letterSize * 0.6,
+                        moving: false,
+                        moveTimer: 0,
+                        moveSpeed: 0.08,
+                        moveRange: 60
+                    });
+                    lastLetterX += letterSize * 0.65;
+                } else {
+                    lastLetterX += 40;
+                }
+            }
+            charIndex = startText.length;
+        }
+        
+        // Initialize with flat platform (for document mode)
+        function initializeFlatPlatform() {
+            const platformText = "_______________"; // Underscores for flat platform
+            for (let i = 0; i < platformText.length; i++) {
+                const letterSize = 60;
+                letters.push({
+                    char: platformText[i],
+                    x: lastLetterX,
+                    y: yPosition,
+                    baseY: yPosition,
+                    size: letterSize,
+                    width: letterSize * 0.6,
+                    moving: false,
+                    moveTimer: 0,
+                    moveSpeed: 0.08,
+                    moveRange: 60
+                });
+                lastLetterX += letterSize * 0.65;
+            }
+        }
+        
+        // Input
+        const keys = {};
+        
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            
+            // Restart game if on game over screen
+            if (player.dead && (e.code === 'Space' || e.code === 'Enter')) {
+                location.reload();
+                e.preventDefault();
+                return;
+            }
+            
+            // Don't handle space/enter on start screen - only buttons work there
+            if (!gameStarted) {
+                return;
+            }
+            
+            if ((e.code === 'Space' || e.code === 'ArrowUp') && !player.dead && gameStarted) {
+                // Regular jump
+                if (player.onGround) {
+                    player.velocityY = player.jumpPower;
+                    player.onGround = false;
+                }
+                // Double jump (one-time use, consumed immediately)
+                else if (hasDoubleJump && !player.onGround) {
+                    player.velocityY = player.jumpPower;
+                    // Consume the double jump completely
+                    hasDoubleJump = false;
+                    hasUsedDoubleJump = true;
+                }
+                e.preventDefault();
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+        
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            location.reload();
+        });
+        
+        document.getElementById('endlessModeBtn').addEventListener('click', () => {
+            gameMode = 'endless';
+            initializeStartingPlatform(); // Start with "Once upon a time"
+            gameStarted = true;
+            gameRunning = true;
+            document.getElementById('startScreen').style.display = 'none';
+        });
+        
+        document.getElementById('documentModeBtn').addEventListener('click', () => {
+            gameMode = 'document';
+            initializeFlatPlatform(); // Start with flat platform
+            loadRandomDocument();
+            gameStarted = true;
+            gameRunning = true;
+            document.getElementById('startScreen').style.display = 'none';
+        });
+        
+        document.getElementById('nextDocBtn').addEventListener('click', () => {
+            location.reload();
+        });
+        
+        document.getElementById('backToMenuBtn').addEventListener('click', () => {
+            location.reload();
+        });
+        
+        function getNextSegment() {
+            if (gameMode === 'document') {
+                // Document mode - go through segments sequentially
+                documentProgress++;
+                if (documentProgress >= currentDocumentSegments.length) {
+                    // Document complete! Create finish line island
+                    createFinishLineIsland();
+                    return ""; // Stop typing text
+                }
+                return currentDocumentSegments[documentProgress];
+            } else {
+                // Endless mode - cycle through story segments
+                currentSegmentIndex = (currentSegmentIndex + 1) % storySegments.length;
+                return storySegments[currentSegmentIndex];
+            }
+        }
+        
+        function createFinishLineIsland() {
+            // Find the position of the last letter
+            let finalX = lastLetterX + 100; // Small gap after last letter
+            
+            if (letters.length > 0) {
+                const lastLetter = letters[letters.length - 1];
+                finalX = lastLetter.x + lastLetter.width + 100;
+            }
+            
+            // Create island immediately after the text
+            finishLineIsland = {
+                x: finalX,
+                y: canvas.height - 150,
+                width: 300,
+                height: 100
+            };
+        }
+        
+        function loadRandomDocument() {
+            currentDocumentIndex = Math.floor(Math.random() * investigativeDocuments.length);
+            const doc = investigativeDocuments[currentDocumentIndex];
+            currentDocumentSegments = doc.segments;
+            documentProgress = 0;
+            documentComplete = false;
+            finishLineIsland = null;
+            airplanesSpawned = 0; // Reset airplane count
+            currentSegment = doc.title + ". " + currentDocumentSegments[0];
+        }
+        
+        function updateTyping() {
+            if (!gameRunning || !gameStarted) return;
+            
+            typingProgress += typeSpeed / 60; // 60 FPS
+            
+            // Update moving letters
+            for (let letter of letters) {
+                if (letter.moving) {
+                    letter.moveTimer += letter.moveSpeed;
+                    letter.y = letter.baseY + Math.sin(letter.moveTimer) * letter.moveRange;
+                }
+            }
+            
+            // Spawn and update airplanes in Epstein Files mode
+            if (gameMode === 'document') {
+                airplaneSpawnTimer++;
+                
+                // Spawn new airplane (max 3 total)
+                if (airplaneSpawnTimer >= airplaneSpawnInterval && !airplane && airplanesSpawned < maxAirplanes) {
+                    airplaneSpawnTimer = 0;
+                    airplanesSpawned++;
+                    const startY = 200 + Math.random() * (canvas.height - 400);
+                    airplane = {
+                        x: cameraX + canvas.width + 150, // Spawn outside view on the right
+                        y: startY,
+                        baseY: startY,
+                        width: 100,
+                        height: 50,
+                        speed: 3,
+                        oscillateSpeed: 0.05,
+                        oscillateRange: 60,
+                        oscillateTimer: 0
+                    };
+                }
+                
+                // Update airplane position
+                if (airplane) {
+                    airplane.x -= airplane.speed;
+                    airplane.oscillateTimer += airplane.oscillateSpeed;
+                    airplane.y = airplane.baseY + Math.sin(airplane.oscillateTimer) * airplane.oscillateRange;
+                    
+                    // Remove airplane when off screen to the left
+                    if (airplane.x < cameraX - 200) {
+                        airplane = null;
+                    }
+                }
+            }
+            
+            if (deleteMode) {
+                // Deleting the wrong word
+                if (typingProgress >= 1 && letters.length > 0) {
+                    typingProgress = 0;
+                    
+                    // Create double jump powerup when we start deleting (only once at the beginning)
+                    if (deleteCount === wrongWord.replace(/ /g, '').length) {
+                        // Find the position right after the last remaining letter (before deletion starts)
+                        let lastValidX = 100;
+                        let lastValidY = yPosition;
+                        
+                        // Look ahead to find where the last letter will be after all deletions
+                        const lettersAfterDelete = letters.length - deleteCount;
+                        if (lettersAfterDelete > 0) {
+                            const lastValidLetter = letters[lettersAfterDelete - 1];
+                            lastValidX = lastValidLetter.x + lastValidLetter.width + 30;
+                            lastValidY = lastValidLetter.y;
+                        }
+                        
+                        // Spawn a double jump powerup right after the last valid letter
+                        doubleJumpPowerup = {
+                            x: lastValidX,
+                            y: lastValidY - 80, // Higher up so it's visible and reachable
+                            width: 40,
+                            height: 40,
+                            collected: false,
+                            bobTimer: 0
+                        };
+                    }
+                    
+                    letters.pop();
+                    deleteCount--;
+                    
+                    if (deleteCount <= 0) {
+                        deleteMode = false;
+                        wrongWordMode = false;
+                    }
+                }
+            } else if (wrongWordMode) {
+                // Typing the wrong word
+                if (typingProgress >= 1 && wrongWordCharsTyped < wrongWord.length) {
+                    typingProgress = 0;
+                    const char = wrongWord[wrongWordCharsTyped];
+                    
+                    if (char !== ' ') {
+                        const letterSize = 60;
+                        letters.push({
+                            char: char,
+                            x: lastLetterX,
+                            y: yPosition,
+                            size: letterSize,
+                            width: letterSize * 0.6
+                        });
+                        lastLetterX += letterSize * 0.65;
+                    } else {
+                        lastLetterX += 40;
+                    }
+                    
+                    wrongWordCharsTyped++;
+                    
+                    // Finished typing wrong word, now delete it
+                    if (wrongWordCharsTyped >= wrongWord.length) {
+                        deleteMode = true;
+                        deleteCount = wrongWord.replace(/ /g, '').length; // Only count non-space chars
+                    }
+                }
+            } else {
+                // Normal typing mode
+                if (typingProgress >= 1 && charIndex < currentSegment.length) {
+                    typingProgress = 0;
+                    const char = currentSegment[charIndex];
+                    
+                    // Check if we should make a "mistake" (type wrong word)
+                    // Only trigger errors in endless mode, not in document mode
+                    // Only trigger if cooldown has passed
+                    const currentTime = Date.now();
+                    const canTriggerError = (currentTime - lastErrorTime) >= errorCooldown;
+                    
+                    if (gameMode === 'endless' && char === ' ' && canTriggerError && Math.random() < wrongWordProbability && letters.length > 10) {
+                        wrongWordMode = true;
+                        wrongWord = wrongWords[Math.floor(Math.random() * wrongWords.length)];
+                        wrongWordCharsTyped = 0;
+                        correctWordAfterDelete = "";
+                        charIndex++; // Skip the space
+                        lastErrorTime = currentTime; // Record error time
+                        
+                        // Find the next word to replace
+                        let wordEnd = charIndex;
+                        while (wordEnd < currentSegment.length && currentSegment[wordEnd] !== ' ') {
+                            correctWordAfterDelete += currentSegment[wordEnd];
+                            wordEnd++;
+                        }
+                        charIndex = wordEnd; // Skip past the word we're "replacing"
+                        return;
+                    }
+                    
+                    // Adjust Y position
+                    yDirectionTimer++;
+                    if (yDirectionTimer > 60 + Math.random() * 120) {
+                        yDirectionTimer = 0;
+                        const rand = Math.random();
+                        if (rand < 0.3) yDirection = -1; // up
+                        else if (rand < 0.6) yDirection = 1; // down
+                        else yDirection = 0; // straight
+                    }
+                    
+                    if (yDirection !== 0) {
+                        yPosition += yDirection * 3;
+                        yPosition = Math.max(150, Math.min(canvas.height - 100, yPosition));
+                    }
+                    
+                    // Add letter
+                    if (char !== ' ') {
+                        const letterSize = 60;
+                        
+                        // Randomly make some words oscillate (moving platforms!)
+                        const isMovingWord = Math.random() < 0.15 && letters.length > 5; // 15% chance
+                        
+                        // Check if this is part of the word "pizza"
+                        const currentWord = currentSegment.substring(Math.max(0, charIndex - 10), charIndex + 10).toLowerCase();
+                        const isPizzaWord = currentWord.includes('pizza');
+                        
+                        letters.push({
+                            char: char,
+                            x: lastLetterX,
+                            y: yPosition,
+                            baseY: yPosition, // Store original Y position
+                            size: letterSize,
+                            width: letterSize * 0.6,
+                            moving: isMovingWord,
+                            moveTimer: Math.random() * Math.PI * 2, // Random start phase
+                            moveSpeed: 0.08,
+                            moveRange: 60, // How far up/down it moves
+                            isPizza: isPizzaWord && gameMode === 'document',
+                            pizzaTouched: false,
+                            pizzaFlashTimer: 0,
+                            pizzaExploded: false
+                        });
+                        lastLetterX += letterSize * 0.65;
+                    } else {
+                        // Space creates a gap
+                        const gapSize = 40 + Math.random() * 40;
+                        lastLetterX += gapSize;
+                    }
+                    
+                    charIndex++;
+                } else if (charIndex >= currentSegment.length) {
+                    // Move to next segment with a gap
+                    currentSegment = getNextSegment();
+                    charIndex = 0;
+                    lastLetterX += 80 + Math.random() * 60;
+                }
+            }
+            
+            // Update powerup bobbing animation
+            if (doubleJumpPowerup && !doubleJumpPowerup.collected) {
+                doubleJumpPowerup.bobTimer += 0.1;
+                // Create gentle bobbing motion
+                const bobOffset = Math.sin(doubleJumpPowerup.bobTimer) * 5;
+                doubleJumpPowerup.currentY = doubleJumpPowerup.y + bobOffset;
+            }
+        }
+        
+        function updatePlayer() {
+            if (player.dead || !gameStarted) return;
+            
+            // Handle horizontal movement
+            player.velocityX = 0;
+            if (keys['KeyA'] || keys['ArrowLeft']) {
+                player.velocityX = -player.speed;
+            }
+            if (keys['KeyD'] || keys['ArrowRight']) {
+                player.velocityX = player.speed;
+            }
+            
+            player.x += player.velocityX;
+            
+            // Apply gravity
+            player.velocityY += player.gravity;
+            player.y += player.velocityY;
+            
+            // Check collision with double jump powerup (permanent until touched)
+            if (doubleJumpPowerup && !doubleJumpPowerup.collected) {
+                const powerupScreenX = doubleJumpPowerup.x - cameraX;
+                const playerLeft = player.x + cameraX;
+                const playerRight = playerLeft + player.width;
+                const playerTop = player.y;
+                const playerBottom = player.y + player.height;
+                
+                // Check collision
+                if (playerRight > doubleJumpPowerup.x && 
+                    playerLeft < doubleJumpPowerup.x + doubleJumpPowerup.width &&
+                    playerBottom > doubleJumpPowerup.y && 
+                    playerTop < doubleJumpPowerup.y + doubleJumpPowerup.height + 20) {
+                    // Collect the powerup! It stays forever now
+                    doubleJumpPowerup.collected = true;
+                    hasDoubleJump = true;
+                    hasUsedDoubleJump = false;
+                    // Remove powerup from screen after collection
+                    setTimeout(() => {
+                        if (doubleJumpPowerup && doubleJumpPowerup.collected) {
+                            doubleJumpPowerup = null;
+                        }
+                    }, 100);
+                }
+            }
+            
+            // Check collision with letter platforms (the line under the letters)
+            player.onGround = false;
+            
+            // Check airplane collision in document mode
+            if (gameMode === 'document' && airplane) {
+                const playerLeft = player.x;
+                const playerRight = player.x + player.width;
+                const playerTop = player.y;
+                const playerBottom = player.y + player.height;
+                
+                const airplaneLeft = airplane.x - cameraX;
+                const airplaneRight = airplaneLeft + airplane.width;
+                const airplaneTop = airplane.y - airplane.height / 2;
+                const airplaneBottom = airplane.y + airplane.height / 2;
+                
+                // Check if player collides with airplane
+                if (playerRight > airplaneLeft && playerLeft < airplaneRight &&
+                    playerBottom > airplaneTop && playerTop < airplaneBottom) {
+                    // Push player to the left (off the platform)
+                    player.x -= 8;
+                    player.velocityY = -5; // Slight upward push
+                }
+            }
+            
+            // Check letter platforms
+            for (let letter of letters) {
+                const letterScreenX = letter.x - cameraX;
+                if (letterScreenX < -100 || letterScreenX > canvas.width + 100) continue;
+                
+                const platformLeft = letter.x;
+                const platformRight = platformLeft + letter.width;
+                const platformY = letter.y + letter.size / 2;
+                
+                const playerLeft = player.x + cameraX;
+                const playerRight = playerLeft + player.width;
+                const playerBottom = player.y + player.height;
+                
+                if (playerRight > platformLeft && playerLeft < platformRight) {
+                    if (playerBottom >= platformY - 5 && playerBottom <= platformY + 15 && player.velocityY >= 0) {
+                        player.y = platformY - player.height;
+                        player.velocityY = 0;
+                        player.onGround = true;
+                        
+                        // Check if player touched pizza word
+                        if (letter.isPizza && !letter.pizzaTouched) {
+                            letter.pizzaTouched = true;
+                            letter.pizzaFlashTimer = 0;
+                        }
+                    }
+                }
+            }
+            
+            // Update pizza flash and explosion timers
+            for (let i = letters.length - 1; i >= 0; i--) {
+                const letter = letters[i];
+                if (letter.pizzaTouched && !letter.pizzaExploded) {
+                    letter.pizzaFlashTimer++;
+                    
+                    // Explode after 2 seconds (120 frames at 60fps)
+                    if (letter.pizzaFlashTimer >= 120) {
+                        letter.pizzaExploded = true;
+                        // Remove this letter
+                        letters.splice(i, 1);
+                    }
+                }
+            }
+            
+            // Death conditions
+            if (player.y > canvas.height + 50) {
+                player.dead = true;
+                gameRunning = false;
+                showGameOver();
+            }
+            
+            // Water death in document mode (lower boundary)
+            if (gameMode === 'document' && player.y > canvas.height - 50) {
+                player.dead = true;
+                gameRunning = false;
+                showGameOver();
+            }
+            
+            // Check if player fell off the left side of screen
+            if (player.x < -50) {
+                player.dead = true;
+                gameRunning = false;
+                showGameOver();
+            }
+            
+            // Check if player reached finish line island (win condition)
+            if (gameMode === 'document' && finishLineIsland) {
+                const playerWorldX = player.x + cameraX;
+                if (playerWorldX > finishLineIsland.x && 
+                    playerWorldX < finishLineIsland.x + finishLineIsland.width &&
+                    player.y > finishLineIsland.y - player.height &&
+                    player.y < finishLineIsland.y + finishLineIsland.height) {
+                    // Player reached the island - WIN!
+                    documentComplete = true;
+                    gameRunning = false;
+                    showDocumentComplete();
+                    return;
+                }
+            }
+            
+            // Constant camera movement - only when player reaches threshold
+            if (player.x + cameraX > scrollThreshold) {
+                cameraX += cameraSpeed;
+                player.x -= cameraSpeed; // Keep player at threshold position
+            }
+            
+            // Update score based on distance traveled
+            score = Math.floor(cameraX / 10);
+            document.getElementById('score').textContent = score;
+            
+            // Show progress in document mode
+            if (gameMode === 'document') {
+                document.getElementById('docProgress').style.display = 'block';
+                document.getElementById('progressText').textContent = documentProgress;
+                document.getElementById('progressTotal').textContent = currentDocumentSegments.length;
+            }
+        }
+        
+        function drawLetters() {
+            ctx.font = 'bold 60px Courier New';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // Choose colors based on game mode
+            const letterColor = gameMode === 'document' ? '#2C5F2D' : '#00ff88'; // Dark green for island theme
+            const movingColor = gameMode === 'document' ? '#FF6B35' : '#ff00ff'; // Orange for island theme
+            
+            for (let letter of letters) {
+                const screenX = letter.x - cameraX;
+                
+                if (screenX < -100 || screenX > canvas.width + 100) continue;
+                
+                // Pizza flashing effect
+                let currentColor = letter.moving ? movingColor : letterColor;
+                let currentAlpha = 0.6;
+                
+                if (letter.pizzaTouched && !letter.pizzaExploded) {
+                    // Flash red and yellow
+                    const flashFrame = Math.floor(letter.pizzaFlashTimer / 10);
+                    currentColor = flashFrame % 2 === 0 ? '#FF0000' : '#FFFF00';
+                    currentAlpha = 0.9;
+                    
+                    // Add explosion particles near the end
+                    if (letter.pizzaFlashTimer > 90) {
+                        for (let p = 0; p < 5; p++) {
+                            const angle = (Math.PI * 2 / 5) * p + letter.pizzaFlashTimer * 0.1;
+                            const dist = (letter.pizzaFlashTimer - 90) * 2;
+                            const px = screenX + letter.width / 2 + Math.cos(angle) * dist;
+                            const py = letter.y + Math.sin(angle) * dist;
+                            
+                            ctx.fillStyle = '#FF6600';
+                            ctx.globalAlpha = 1 - (letter.pizzaFlashTimer - 90) / 30;
+                            ctx.beginPath();
+                            ctx.arc(px, py, 5, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        currentAlpha = 1;
+                    }
+                }
+                
+                // Draw letter with slight transparency to look like background
+                ctx.shadowColor = currentColor;
+                ctx.shadowBlur = letter.moving ? 15 : 10;
+                ctx.globalAlpha = currentAlpha;
+                ctx.fillStyle = currentColor;
+                ctx.fillText(letter.char, screenX + letter.width / 2, letter.y);
+                
+                // Draw platform line under letter (this is what the player stands on)
+                ctx.globalAlpha = 1.0;
+                ctx.shadowBlur = letter.moving ? 8 : 5;
+                ctx.strokeStyle = currentColor;
+                ctx.lineWidth = letter.moving ? 4 : 3;
+                ctx.beginPath();
+                ctx.moveTo(screenX, letter.y + letter.size / 2);
+                ctx.lineTo(screenX + letter.width, letter.y + letter.size / 2);
+                ctx.stroke();
+            }
+            
+            ctx.shadowBlur = 0;
+            ctx.globalAlpha = 1.0;
+        }
+        
+        function drawDoubleJumpPowerup() {
+            if (!doubleJumpPowerup || doubleJumpPowerup.collected) return;
+            
+            const screenX = doubleJumpPowerup.x - cameraX;
+            const screenY = doubleJumpPowerup.currentY || doubleJumpPowerup.y;
+            
+            if (screenX < -100 || screenX > canvas.width + 100) return;
+            
+            ctx.save();
+            
+            // Draw glowing circle
+            ctx.shadowColor = '#ff6600';
+            ctx.shadowBlur = 20;
+            ctx.fillStyle = '#ff6600';
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.arc(screenX + 20, screenY + 20, 20, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw inner circle
+            ctx.globalAlpha = 1.0;
+            ctx.fillStyle = '#ffaa00';
+            ctx.beginPath();
+            ctx.arc(screenX + 20, screenY + 20, 15, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw double arrow symbol
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 0;
+            
+            // First up arrow
+            ctx.beginPath();
+            ctx.moveTo(screenX + 20, screenY + 12);
+            ctx.lineTo(screenX + 20, screenY + 20);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(screenX + 16, screenY + 16);
+            ctx.lineTo(screenX + 20, screenY + 12);
+            ctx.lineTo(screenX + 24, screenY + 16);
+            ctx.stroke();
+            
+            // Second up arrow
+            ctx.beginPath();
+            ctx.moveTo(screenX + 20, screenY + 20);
+            ctx.lineTo(screenX + 20, screenY + 28);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(screenX + 16, screenY + 24);
+            ctx.lineTo(screenX + 20, screenY + 20);
+            ctx.lineTo(screenX + 24, screenY + 24);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        function drawAirplane() {
+            if (!airplane || gameMode !== 'document') return;
+            
+            const screenX = airplane.x - cameraX;
+            const screenY = airplane.y;
+            
+            if (screenX < -200 || screenX > canvas.width + 200) return;
+            
+            ctx.save();
+            
+            // Main fuselage (elongated body)
+            ctx.fillStyle = '#E8E8E8';
+            ctx.strokeStyle = '#555555';
+            ctx.lineWidth = 2;
+            
+            // Fuselage body - elongated tube
+            ctx.beginPath();
+            ctx.moveTo(screenX - 50, screenY);
+            ctx.quadraticCurveTo(screenX - 50, screenY - 10, screenX - 40, screenY - 12);
+            ctx.lineTo(screenX + 40, screenY - 12);
+            ctx.quadraticCurveTo(screenX + 50, screenY - 10, screenX + 50, screenY);
+            ctx.quadraticCurveTo(screenX + 50, screenY + 10, screenX + 40, screenY + 12);
+            ctx.lineTo(screenX - 40, screenY + 12);
+            ctx.quadraticCurveTo(screenX - 50, screenY + 10, screenX - 50, screenY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Cockpit (front section)
+            ctx.fillStyle = '#87CEEB';
+            ctx.beginPath();
+            ctx.arc(screenX - 45, screenY, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Main wings (large, swept back)
+            ctx.fillStyle = '#D0D0D0';
+            ctx.beginPath();
+            // Top wing
+            ctx.moveTo(screenX - 10, screenY - 12);
+            ctx.lineTo(screenX - 35, screenY - 40);
+            ctx.lineTo(screenX - 25, screenY - 42);
+            ctx.lineTo(screenX + 5, screenY - 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Bottom wing
+            ctx.beginPath();
+            ctx.moveTo(screenX - 10, screenY + 12);
+            ctx.lineTo(screenX - 35, screenY + 40);
+            ctx.lineTo(screenX - 25, screenY + 42);
+            ctx.lineTo(screenX + 5, screenY + 12);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Tail wing (vertical stabilizer)
+            ctx.beginPath();
+            ctx.moveTo(screenX + 40, screenY);
+            ctx.lineTo(screenX + 55, screenY - 25);
+            ctx.lineTo(screenX + 50, screenY - 25);
+            ctx.lineTo(screenX + 40, screenY - 5);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Horizontal stabilizer (tail fins)
+            ctx.beginPath();
+            ctx.moveTo(screenX + 42, screenY);
+            ctx.lineTo(screenX + 50, screenY - 8);
+            ctx.lineTo(screenX + 52, screenY - 6);
+            ctx.lineTo(screenX + 44, screenY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(screenX + 42, screenY);
+            ctx.lineTo(screenX + 50, screenY + 8);
+            ctx.lineTo(screenX + 52, screenY + 6);
+            ctx.lineTo(screenX + 44, screenY);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            // Engine details on wings
+            ctx.fillStyle = '#888888';
+            ctx.beginPath();
+            ctx.ellipse(screenX - 20, screenY - 26, 5, 8, Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.ellipse(screenX - 20, screenY + 26, 5, 8, -Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Windows along fuselage
+            ctx.fillStyle = '#4A90E2';
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.arc(screenX - 30 + i * 15, screenY - 4, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+            
+            // Red stripe detail
+            ctx.strokeStyle = '#CC0000';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(screenX - 40, screenY);
+            ctx.lineTo(screenX + 35, screenY);
+            ctx.stroke();
+            
+            // Warning indicator glow
+            ctx.shadowColor = '#FF0000';
+            ctx.shadowBlur = 20;
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 2;
+            ctx.globalAlpha = 0.6;
+            ctx.beginPath();
+            ctx.ellipse(screenX, screenY, 60, 30, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        function drawPlayer() {
+            const screenX = player.x;
+            const screenY = player.y;
+            
+            ctx.save();
+            ctx.strokeStyle = '#ffffff';
+            ctx.fillStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            
+            // Head
+            ctx.beginPath();
+            ctx.arc(screenX + 15, screenY + 10, 8, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Body
+            ctx.beginPath();
+            ctx.moveTo(screenX + 15, screenY + 18);
+            ctx.lineTo(screenX + 15, screenY + 35);
+            ctx.stroke();
+            
+            // Arms
+            ctx.beginPath();
+            ctx.moveTo(screenX + 15, screenY + 23);
+            ctx.lineTo(screenX + 5, screenY + 28);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(screenX + 15, screenY + 23);
+            ctx.lineTo(screenX + 25, screenY + 28);
+            ctx.stroke();
+            
+            // Legs
+            ctx.beginPath();
+            ctx.moveTo(screenX + 15, screenY + 35);
+            ctx.lineTo(screenX + 8, screenY + 50);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(screenX + 15, screenY + 35);
+            ctx.lineTo(screenX + 22, screenY + 50);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        function showGameOver() {
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        function showDocumentComplete() {
+            document.getElementById('docFinalScore').textContent = score;
+            document.getElementById('documentComplete').style.display = 'block';
+        }
+        
+        function gameLoop() {
+            // Clear canvas with theme-appropriate background
+            if (gameMode === 'document') {
+                // Island theme - sky blue gradient
+                const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                gradient.addColorStop(0, '#87CEEB');
+                gradient.addColorStop(0.7, '#E0F6FF');
+                gradient.addColorStop(1, '#B0E0E6');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw water at the bottom
+                ctx.fillStyle = '#1E90FF';
+                ctx.fillRect(0, canvas.height - 80, canvas.width, 80);
+                
+                // Water waves
+                ctx.strokeStyle = '#4169E1';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                for (let x = 0; x < canvas.width; x += 30) {
+                    const waveOffset = Math.sin((x + cameraX) * 0.05 + Date.now() * 0.002) * 8;
+                    if (x === 0) {
+                        ctx.moveTo(x, canvas.height - 80 + waveOffset);
+                    } else {
+                        ctx.lineTo(x, canvas.height - 80 + waveOffset);
+                    }
+                }
+                ctx.stroke();
+                
+                // Add some clouds
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                ctx.beginPath();
+                ctx.arc(200, 100, 40, 0, Math.PI * 2);
+                ctx.arc(240, 90, 50, 0, Math.PI * 2);
+                ctx.arc(280, 100, 40, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(600, 150, 35, 0, Math.PI * 2);
+                ctx.arc(635, 145, 45, 0, Math.PI * 2);
+                ctx.arc(670, 150, 35, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw finish line island if it exists
+                if (finishLineIsland) {
+                    const islandScreenX = finishLineIsland.x - cameraX;
+                    
+                    // Island sand
+                    ctx.fillStyle = '#F4A460';
+                    ctx.beginPath();
+                    ctx.ellipse(islandScreenX + finishLineIsland.width / 2, finishLineIsland.y + 40, 
+                               finishLineIsland.width / 2, 50, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Blue and white striped building (like the image)
+                    const buildingX = islandScreenX + finishLineIsland.width / 2 - 40;
+                    const buildingY = finishLineIsland.y - 60;
+                    const buildingWidth = 80;
+                    const buildingHeight = 100;
+                    
+                    // Building base (white)
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(buildingX, buildingY, buildingWidth, buildingHeight);
+                    ctx.strokeStyle = '#333333';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(buildingX, buildingY, buildingWidth, buildingHeight);
+                    
+                    // Blue horizontal stripes
+                    ctx.fillStyle = '#0047AB';
+                    const stripeHeight = 12;
+                    for (let i = 0; i < buildingHeight; i += stripeHeight * 2) {
+                        ctx.fillRect(buildingX, buildingY + i, buildingWidth, stripeHeight);
+                    }
+                    
+                    // Door
+                    ctx.fillStyle = '#8B4513';
+                    ctx.fillRect(buildingX + buildingWidth / 2 - 12, buildingY + buildingHeight - 30, 24, 30);
+                    ctx.strokeRect(buildingX + buildingWidth / 2 - 12, buildingY + buildingHeight - 30, 24, 30);
+                    
+                    // Windows
+                    ctx.fillStyle = '#87CEEB';
+                    // Left window
+                    ctx.fillRect(buildingX + 15, buildingY + 20, 18, 18);
+                    ctx.strokeRect(buildingX + 15, buildingY + 20, 18, 18);
+                    // Right window
+                    ctx.fillRect(buildingX + buildingWidth - 33, buildingY + 20, 18, 18);
+                    ctx.strokeRect(buildingX + buildingWidth - 33, buildingY + 20, 18, 18);
+                    
+                    // Window cross dividers
+                    ctx.strokeStyle = '#333333';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(buildingX + 24, buildingY + 20);
+                    ctx.lineTo(buildingX + 24, buildingY + 38);
+                    ctx.moveTo(buildingX + 15, buildingY + 29);
+                    ctx.lineTo(buildingX + 33, buildingY + 29);
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(buildingX + buildingWidth - 24, buildingY + 20);
+                    ctx.lineTo(buildingX + buildingWidth - 24, buildingY + 38);
+                    ctx.moveTo(buildingX + buildingWidth - 33, buildingY + 29);
+                    ctx.lineTo(buildingX + buildingWidth - 15, buildingY + 29);
+                    ctx.stroke();
+                    
+                    // Roof
+                    ctx.fillStyle = '#CC0000';
+                    ctx.beginPath();
+                    ctx.moveTo(buildingX - 5, buildingY);
+                    ctx.lineTo(buildingX + buildingWidth / 2, buildingY - 20);
+                    ctx.lineTo(buildingX + buildingWidth + 5, buildingY);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // Palm tree next to building
+                    ctx.fillStyle = '#8B4513';
+                    ctx.fillRect(islandScreenX + finishLineIsland.width - 60, 
+                                finishLineIsland.y - 40, 15, 80);
+                    
+                    // Palm tree leaves
+                    ctx.fillStyle = '#228B22';
+                    for (let i = 0; i < 6; i++) {
+                        const angle = (Math.PI * 2 / 6) * i;
+                        ctx.save();
+                        ctx.translate(islandScreenX + finishLineIsland.width - 52.5, finishLineIsland.y - 40);
+                        ctx.rotate(angle);
+                        ctx.beginPath();
+                        ctx.ellipse(0, -25, 12, 35, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                    
+                    // "FINISH" text below building
+                    ctx.fillStyle = '#FF0000';
+                    ctx.font = 'bold 28px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 3;
+                    ctx.strokeText('FINISH', islandScreenX + finishLineIsland.width / 2, finishLineIsland.y + 55);
+                    ctx.fillText('FINISH', islandScreenX + finishLineIsland.width / 2, finishLineIsland.y + 55);
+                }
+            } else {
+                // Endless mode - dark theme
+                ctx.fillStyle = '#0f0f1e';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+            
+            if (gameRunning) {
+                updateTyping();
+                updatePlayer();
+            }
+            
+            // Draw letters first (background layer)
+            drawLetters();
+            
+            // Draw powerup
+            drawDoubleJumpPowerup();
+            
+            // Draw airplane (in front of text, behind player)
+            drawAirplane();
+            
+            // Draw player on top (foreground layer)
+            if (gameStarted) {
+                drawPlayer();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Start game
+        gameLoop();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
