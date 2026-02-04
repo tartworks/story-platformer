@@ -860,8 +860,6 @@
                     "and how you are hung like a horse",
                     "and- well you get the picture.",
                     "Hope you dont mind!",
-                    "NOTE: Maxwell had frequent communications",
-                    "with Clinton staffers between 2001-2004.",
                     "END OF EMAIL"
                 ]
             },
@@ -875,8 +873,6 @@
                     "Went home with someone I have before",
                     "a 40 year old blonde big boobby widow",
                     "if you can believe that.",
-                    "NOTE: Lewd exchanges between Maxwell",
-                    "and Clinton office email addresses.",
                     "END OF EMAIL"
                 ]
             },
@@ -898,7 +894,6 @@
                     "He says if I give him a no.",
                     "he will ring Clinton.",
                     "Doug do you want him to call you?",
-                    "NOTE: Likely refers to Doug Band top Clinton adviser.",
                     "END OF EMAIL"
                 ]
             },
@@ -1536,7 +1531,21 @@
             }
             
             // Constant camera movement - only when player reaches threshold
-            if (player.x + cameraX > scrollThreshold) {
+            // Stop scrolling when finish island is fully visible
+            let shouldScroll = player.x + cameraX > scrollThreshold;
+            
+            // In document mode, stop scrolling when island is fully on screen
+            if (gameMode === 'document' && finishLineIsland) {
+                const islandRightEdge = finishLineIsland.x + finishLineIsland.width;
+                const screenRightEdge = cameraX + canvas.width;
+                
+                // Stop scrolling once the island's right edge is visible with some padding
+                if (islandRightEdge <= screenRightEdge - 100) {
+                    shouldScroll = false;
+                }
+            }
+            
+            if (shouldScroll) {
                 cameraX += cameraSpeed;
                 player.x -= cameraSpeed; // Keep player at threshold position
             }
@@ -2050,4 +2059,3 @@
     </script>
 </body>
 </html>
-
